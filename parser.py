@@ -8,13 +8,12 @@ Passes parsed dict to Layer 3 (via callback).
 
 import re
 
-# Standard syslog format:
-# Jun 10 10:23:01 hostname process[pid]: message
+# syslog format ISO 8601 Format:
 SYSLOG_PATTERN = re.compile(
-    r'^(?P<timestamp>\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+'
+    r'^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[\.\d+:]*)\s+'  # ISO format
     r'(?P<hostname>\S+)\s+'
-    r'(?P<process>\w+)'
-    r'(?:\[(?P<pid>\d+)\])?'   # pid is optional — not all processes include it
+    r'(?P<process>[\w/\-\.]+)'
+    r'(?:\[(?P<pid>\d+)\])?'
     r':\s+(?P<message>.+)$'
 )
 

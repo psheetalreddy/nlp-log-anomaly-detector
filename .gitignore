@@ -1,1 +1,6 @@
 logs/
+models/
+venv/
+__pycache__/
+*.log
+*.db
