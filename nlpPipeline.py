@@ -174,8 +174,3 @@ if __name__ == "__main__":
 
     for d in sample_dicts:
         process(d, callback=mock_layer4)
-    
-    print(_tfidf_corpus)
-    print(_tfidf_fitted)
-
-    

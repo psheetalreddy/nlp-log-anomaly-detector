@@ -53,7 +53,7 @@ class InvertedIndex:
     """
 
     def __init__(self):
-        self._index = {}       # token -> list of log IDs
+        self._index = {}      
         self._lock = threading.Lock()
 
     def add(self, log_id: int, tokens: list[str]) -> None:

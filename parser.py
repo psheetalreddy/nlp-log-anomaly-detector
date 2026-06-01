@@ -63,7 +63,6 @@ if __name__ == "__main__":
         "Jun 10 10:23:01 ubuntu sshd[1234]: Failed password for root from 192.168.1.1",
         "Jun 10 10:24:00 ubuntu kernel: Out of memory: Kill process 888",
         "Jun 10 10:25:10 ubuntu cron[999]: Job started successfully",
-        "Jun 10 10:26:00 ubuntu systemd: Warning: service took too long",
         "THIS IS A MALFORMED LINE WITH NO STRUCTURE",
     ]
 
