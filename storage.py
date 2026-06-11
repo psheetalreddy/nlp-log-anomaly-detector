@@ -118,6 +118,16 @@ class StorageLayer:
         self._conn = init_db(db_path)
         self._index = InvertedIndex()
         self._db_lock = threading.Lock()
+        self._repopulate_index()
+    
+    def _repopulate_index(self) -> None:
+        rows = self._conn.execute("SELECT id, tokens FROM logs WHERE tokens IS NOT NULL").fetchall()
+        for log_id, tokens_str in rows:
+            tokens = [t for t in tokens_str.split(",") if t]
+            self._index.add(log_id, tokens)
+        if rows:
+            print(f"[Storage] Repopulated index with {len(rows)} existing logs.")
+    
 
     def process(self, enriched_dict: dict, callback) -> None:
         try:
@@ -175,24 +185,24 @@ if __name__ == "__main__":
             "timestamp": "Jun 10 10:23:01", "hostname": "ubuntu",
             "process": "sshd", "pid": "1234", "level": "ERROR",
             "message": "Failed password for root from 192.168.1.1",
-            "tokens": ["failed", "password", "root"],
             "tfidf_score": 0.21,
+            "tokens": ["failed", "password", "root"],
             "embedding": [0.1] * 384,
         },
         {
             "timestamp": "Jun 10 10:24:00", "hostname": "ubuntu",
             "process": "kernel", "pid": "", "level": "CRITICAL",
             "message": "Out of memory: Kill process 888",
-            "tokens": ["memory", "kill", "process"],
             "tfidf_score": 0.18,
+            "tokens": ["memory", "kill", "process"],
             "embedding": [0.2] * 384,
         },
         {
             "timestamp": "Jun 10 10:25:10", "hostname": "ubuntu",
             "process": "cron", "pid": "999", "level": "INFO",
             "message": "Failed job started successfully",
-            "tokens": ["failed", "job", "started"],
             "tfidf_score": 0.05,
+            "tokens": ["memory", "kill", "process"],
             "embedding": [0.3] * 384,
         },
     ]
@@ -205,6 +215,7 @@ if __name__ == "__main__":
 
     # Test boolean queries
     idx = storage.get_index()
+    print(idx._index)
     print(f"\nAND ['failed', 'password'] : {idx.search_and(['failed', 'password'])}")
     print(f"OR  ['failed', 'memory']   : {idx.search_or(['failed', 'memory'])}")
     print(f"NOT include=['failed'] exclude=['password'] : {idx.search_not(['failed'], ['password'])}")
