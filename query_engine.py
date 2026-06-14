@@ -50,58 +50,83 @@ def _colorize(log: dict) -> str:
 
 # ── Anomaly Detector ──────────────────────────────────────────────────────────
 
-class AnomalyDetector:
-    """
-    Trains Isolation Forest on Linux_2k.log embeddings once at startup.
-    Runs inference on every new incoming log embedding.
-    """
+import re
 
+# Loghub Linux_2k.log format: "Mon DD HH:MM:SS host process[pid]: message"
+_TRAIN_LINE_PATTERN = re.compile(
+    r'^\w+\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\S+\s+[\w/\-\.]+(?:\(\S+\))?(?:\[\d+\])?:\s+(?P<message>.+)$'
+)
+
+def _extract_training_message(line: str) -> str:
+    m = _TRAIN_LINE_PATTERN.match(line.strip())
+    return m.group("message") if m else line.strip()
+
+
+class AnomalyDetector:
     def __init__(self, nlp_process_fn):
         self._model = None
-        self._nlp_process = nlp_process_fn  # Layer 3 process fn to get embeddings
-        self._anomaly_ids = []              # log IDs flagged as anomalies
+        self._nlp_process = nlp_process_fn
+        self._anomaly_ids = []
+        self._scores = []          # for stats/metrics
+        self._threshold = None     # decision_function threshold
 
     def train(self, log_lines: list[str]) -> None:
         if os.path.isfile(MODEL_PATH):
-            self._model = joblib.load(MODEL_PATH)
+            self._model, self._threshold = joblib.load(MODEL_PATH)
             print("[AnomalyDetector] Loaded cached model.")
             return
 
         print(f"[AnomalyDetector] Generating embeddings for {len(log_lines)} training lines...")
         embeddings = []
         for line in log_lines:
-            emb = get_embedding(line)
+            msg = _extract_training_message(line)
+            emb = get_embedding(msg)
             embeddings.append(emb)
 
-        X = np.array(embeddings, dtype=np.float32)   # what shape will this be?
-        X = normalize(X)  # L2 normalize for better Isolation Forest performance)
+        X = np.array(embeddings, dtype=np.float32)
+        X = normalize(X)
+
         self._model = IsolationForest(contamination=0.05, random_state=42)
         self._model.fit(X)
-        
+
+        # Set threshold from training distribution (5th percentile of scores)
+        train_scores = self._model.decision_function(X)
+        self._threshold = float(np.percentile(train_scores, 5))
+
         os.makedirs("models", exist_ok=True)
-        joblib.dump(self._model, MODEL_PATH)
-        print("[AnomalyDetector] Training complete. Model saved.")
+        joblib.dump((self._model, self._threshold), MODEL_PATH)
+        print(f"[AnomalyDetector] Training complete. Threshold={self._threshold:.4f}. Model saved.")
 
     def predict(self, log_id: int, embedding: list[float]) -> bool:
-        """
-        Returns True if the log is an anomaly.
-        Isolation Forest returns -1 for anomaly, 1 for normal.
-        """
-        if self._model is None:
+        if self._model is None or self._threshold is None:
             return False
 
         x = np.array(embedding, dtype=np.float32).reshape(1, -1)
         x = normalize(x)
-        result = self._model.predict(x)[0]
+        score = float(self._model.decision_function(x)[0])
+        self._scores.append((log_id, score))
 
-        if result == -1:
+        is_anomaly = score < self._threshold
+        if is_anomaly:
             self._anomaly_ids.append(log_id)
-            return True
-        return False
+        return is_anomaly
 
     def get_anomaly_ids(self) -> list[int]:
         return list(self._anomaly_ids)
 
+    def get_metrics(self) -> dict:
+        total = len(self._scores)
+        anomalies = len(self._anomaly_ids)
+        scores_only = [s for _, s in self._scores]
+        return {
+            "total_scored": total,
+            "anomalies_flagged": anomalies,
+            "anomaly_rate": round(anomalies / total, 4) if total else 0.0,
+            "threshold": round(self._threshold, 4) if self._threshold is not None else None,
+            "min_score": round(min(scores_only), 4) if scores_only else None,
+            "max_score": round(max(scores_only), 4) if scores_only else None,
+            "mean_score": round(float(np.mean(scores_only)), 4) if scores_only else None,
+        }
 
 # ── Query Engine ──────────────────────────────────────────────────────────────
 
@@ -242,6 +267,7 @@ def handle_command(raw: str, engine: QueryEngine) -> None:
 
     elif cmd == "help":
         print(f"""{Color.CYAN}
+    
 Commands:
   search <terms>         Keyword AND search
   search OR <terms>      Keyword OR search
@@ -253,6 +279,12 @@ Commands:
 
     elif cmd == "exit":
         raise SystemExit
+
+    elif cmd == "metrics":
+        m = engine._detector.get_metrics()
+        print(f"{Color.CYAN}── Anomaly Detector Metrics ──{Color.RESET}")
+        for k, v in m.items():
+            print(f"  {k:<20}: {v}")
 
     else:
         print(f"{Color.YELLOW}Unknown command. Type 'help' for options.{Color.RESET}")

@@ -29,7 +29,7 @@ _tfidf_corpus = []        # all cleaned messages seen so far
 _tfidf_fitted = False     # whether vectorizer has been fitted at least once
 
 # Refit TF-IDF every N documents (fitting on every line is too expensive)
-TFIDF_REFIT_INTERVAL = 25
+TFIDF_REFIT_INTERVAL = 50
 
 
 # ── Step 1 — Tokenization and Cleaning ───────────────────────────────────────
