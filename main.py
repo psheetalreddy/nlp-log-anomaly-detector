@@ -21,7 +21,7 @@ from nlp_pipeline  import process as nlp_process
 from storage       import StorageLayer
 from query_engine  import AnomalyDetector, QueryEngine, handle_command, Color
 
-TRAINING_DATA = "logs/Linux_2k.log"
+TRAINING_DATA = "logs/normal_logs.txt"
 DEFAULT_LOG   = "/var/log/syslog"
 
 

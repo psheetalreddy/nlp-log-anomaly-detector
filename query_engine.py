@@ -52,12 +52,13 @@ def _colorize(log: dict) -> str:
 
 import re
 
-# Loghub Linux_2k.log format: "Mon DD HH:MM:SS host process[pid]: message"
+# ISO 8601 syslog format used by normal_clean.txt and live syslog
 _TRAIN_LINE_PATTERN = re.compile(
-    r'^\w+\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\S+\s+[\w/\-\.]+(?:\(\S+\))?(?:\[\d+\])?:\s+(?P<message>.+)$'
+    r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[\S]*\s+\S+\s+[\w/\-\.]+(?:\[\d+\])?:\s+(?P<message>.+)$'
 )
 
 def _extract_training_message(line: str) -> str:
+    """Extracts message field from ISO 8601 syslog line. Falls back to full line."""
     m = _TRAIN_LINE_PATTERN.match(line.strip())
     return m.group("message") if m else line.strip()
 
@@ -67,14 +68,17 @@ class AnomalyDetector:
         self._model = None
         self._nlp_process = nlp_process_fn
         self._anomaly_ids = []
-        self._scores = []          # for stats/metrics
-        self._threshold = None     # decision_function threshold
+        self._scores = []
+        self._threshold = None
 
     def train(self, log_lines: list[str]) -> None:
         if os.path.isfile(MODEL_PATH):
             self._model, self._threshold = joblib.load(MODEL_PATH)
             print("[AnomalyDetector] Loaded cached model.")
             return
+
+        # Filter out comment lines (anomaly_logs.txt has # category headers)
+        log_lines = [l for l in log_lines if not l.startswith("#")]
 
         print(f"[AnomalyDetector] Generating embeddings for {len(log_lines)} training lines...")
         embeddings = []
@@ -89,7 +93,6 @@ class AnomalyDetector:
         self._model = IsolationForest(contamination=0.05, random_state=42)
         self._model.fit(X)
 
-        # Set threshold from training distribution (5th percentile of scores)
         train_scores = self._model.decision_function(X)
         self._threshold = float(np.percentile(train_scores, 5))
 
