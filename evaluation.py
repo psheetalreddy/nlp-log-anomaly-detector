@@ -30,7 +30,7 @@ from sklearn.metrics import (
 from nlp_pipeline import get_embedding
 
 MODEL_PATH   = "models/anomaly_model.pkl"
-NORMAL_PATH  = "logs/normal_logs.txt"
+NORMAL_PATH  = "logs/heldout_normal.txt"
 ANOMALY_PATH = "logs/anomaly_logs.txt"
 OUTPUT_DIR   = "evaluation"
 
